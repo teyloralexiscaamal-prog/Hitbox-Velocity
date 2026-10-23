@@ -1,0 +1,231 @@
+-- // Servicios de Roblox
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+
+-- // Cargar la librería WindUI
+local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+
+-- ================================================================
+-- VARIABLES DE CONTROL
+-- ================================================================
+-- Player / Movimiento
+local WalkSpeedEnabled = false
+local CurrentWalkSpeed = 32
+local speedConnection = nil
+
+-- Hitbox Server
+local hitboxPlayerActive = false
+local hitboxSizeValue = 5 
+local hitboxConnection = nil
+
+-- ================================================================
+-- FUNCIONES AUXILIARES & LÓGICA
+-- ================================================================
+
+-- Lógica para el bucle de WalkSpeed
+local function manageSpeed()
+    if speedConnection then
+        speedConnection:Disconnect()
+        speedConnection = nil
+    end
+
+    if WalkSpeedEnabled then
+        speedConnection = RunService.RenderStepped:Connect(function()
+            if player and player.Character then
+                local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+                if humanoid then
+                    if humanoid.WalkSpeed ~= CurrentWalkSpeed then
+                        humanoid.WalkSpeed = CurrentWalkSpeed
+                    end
+                end
+            end
+        end)
+    else
+        if player and player.Character then
+            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                humanoid.WalkSpeed = 16 -- Valor por defecto de Roblox
+            end
+        end
+    end
+end
+
+-- Mantener la velocidad activa al reaparecer
+player.CharacterAdded:Connect(function(character)
+    character:WaitForChild("Humanoid")
+    task.wait(0.5)
+    if WalkSpeedEnabled then
+        manageSpeed()
+    end
+end)
+
+-- Lógica para Hitbox Player
+local function manageHitboxes()
+    if hitboxConnection then
+        hitboxConnection:Disconnect()
+        hitboxConnection = nil
+    end
+
+    if hitboxPlayerActive then
+        hitboxConnection = RunService.RenderStepped:Connect(function()
+            for _, otherPlayer in ipairs(Players:GetPlayers()) do
+                if otherPlayer ~= player and otherPlayer.Character then
+                    local char = otherPlayer.Character
+                    local rootPart = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
+                    
+                    if rootPart then
+                        rootPart.Size = Vector3.new(hitboxSizeValue, hitboxSizeValue, hitboxSizeValue)
+                        rootPart.Transparency = 0.7
+                        rootPart.CanCollide = false
+                    end
+                end
+            end
+        end)
+    else
+        for _, otherPlayer in ipairs(Players:GetPlayers()) do
+            if otherPlayer ~= player and otherPlayer.Character then
+                local char = otherPlayer.Character
+                local rootPart = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
+                
+                if rootPart then
+                    rootPart.Size = Vector3.new(2, 2, 1)
+                    rootPart.Transparency = 1
+                end
+            end
+        end
+    end
+end
+
+-- ================================================================
+-- VENTANA PRINCIPAL
+-- ================================================================
+local Window = WindUI:CreateWindow({
+    Title = "Script Hub",
+    Subtitle = "v2.5 | Hitbox & Player",
+    Size = UDim2.fromOffset(580, 420),
+    Transparent = true,
+    Theme = "Dark",
+    MinimizeKey = Enum.KeyCode.LeftControl
+})
+
+----------------------------------------------------------------
+-- PESTAÑA 1: HITBOX SERVER
+----------------------------------------------------------------
+local TabHitbox = Window:Tab({
+    Title = "Hitbox Server",
+    Icon = "target",
+})
+
+local SectionHitbox = TabHitbox:Section({
+    Title = "Modificación de Hitboxes",
+})
+
+-- Toggle: Hitbox Player
+TabHitbox:Toggle({
+    Title = "Hitbox Player",
+    Default = false,
+    Callback = function(state)
+        hitboxPlayerActive = state
+        manageHitboxes()
+        
+        if state then
+            WindUI:Notify({
+                Title = "Hitbox Player",
+                Content = "Activado: Hitboxes ampliadas (" .. hitboxSizeValue .. ").",
+                Duration = 2,
+            })
+        else
+            WindUI:Notify({
+                Title = "Hitbox Player",
+                Content = "Desactivado: Hitboxes restauradas.",
+                Duration = 2,
+            })
+        end
+    end,
+})
+
+-- Slider para tamaño de la Hitbox
+TabHitbox:Slider({
+    Title = "Tamaño de Hitbox",
+    Desc = "Ajusta el tamaño del área de impacto",
+    Value = {
+        Min = 1,
+        Max = 50,
+        Default = 5
+    },
+    Callback = function(value)
+        hitboxSizeValue = value
+        if hitboxPlayerActive then
+            manageHitboxes()
+        end
+    end
+})
+
+----------------------------------------------------------------
+-- PESTAÑA 2: PLAYER
+----------------------------------------------------------------
+local PlayerTab = Window:Tab({
+    Title = "Player",
+    Icon = "user"
+})
+
+local MovementSection = PlayerTab:Section({
+    Title = "Movimiento"
+})
+
+MovementSection:Toggle({
+    Title = "Walkspeed",
+    Value = false,
+    Callback = function(state)
+        WalkSpeedEnabled = state
+        manageSpeed()
+    end
+})
+
+MovementSection:Slider({
+    Title = "Ajustar Velocidad",
+    Desc = "Define el valor de velocidad del personaje",
+    Value = {
+        Min = 16,
+        Max = 250,
+        Default = 32
+    },
+    Callback = function(value)
+        CurrentWalkSpeed = value
+        if WalkSpeedEnabled then
+            manageSpeed()
+        end
+    end
+})
+
+----------------------------------------------------------------
+-- PESTAÑA 3: OPCIONES
+----------------------------------------------------------------
+local ConfigTab = Window:Tab({
+    Title = "Opciones",
+    Icon = "settings"
+})
+
+ConfigTab:Button({
+    Title = "Cerrar Interfaz",
+    Desc = "Detiene los bucles y restablece los valores",
+    Callback = function()
+        WalkSpeedEnabled = false
+        hitboxPlayerActive = false
+        
+        manageSpeed()
+        manageHitboxes()
+        
+        Window:Destroy()
+    end
+})
+
+-- Notificación de inicio
+WindUI:Notify({
+    Title = "Script Hub",
+    Content = "¡Interfaz cargada con éxito!",
+    Duration = 3,
+})
+
+Window:SelectTab(TabHitbox)
